@@ -1,0 +1,15 @@
+{
+  "name": "waterrower-2020",
+  "version": "1.0.0",
+  "description": "art hare's attempt at a waterrower-to-pm app, standing on the shoulders of giants",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bleno": "git+https://github.com/arthare/bleno.git#master",
+    "waterrower": "^0.8.4"
+  }
+}
