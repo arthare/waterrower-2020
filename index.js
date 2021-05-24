@@ -1,17 +1,97 @@
 var {WaterRower} = require('waterrower');
-const bleno = require('bleno');
-bleno.on('stateChange', function(state) {
-    console.log('on stateChange: ' + state);
-    if (state === 'poweredOn') {
-      bleno.startAdvertising('Waterrower RPi', ['1818']);
-    } else {
-      bleno.stopAdvertising();
+
+const isTest = process.argv.find((arg) => arg === 'test');
+
+if(!isTest) {
+  // only run bluetooth when we're not testing (aka when we're on the PI)
+  const bleno = require('bleno');
+  bleno.on('stateChange', function(state) {
+      console.log('on stateChange: ' + state);
+      if (state === 'poweredOn') {
+        bleno.startAdvertising('Waterrower RPi', ['1818']);
+      } else {
+        bleno.stopAdvertising();
+      }
+  });
+
+  
+  bleno.on('advertisingStart', function(error) {
+    if (!error) {
+      bleno.setServices([
+        // CPS
+        new bleno.PrimaryService({
+          uuid: '1818', // cycling power service
+          characteristics: [
+            // Alert Level
+            new bleno.Characteristic({
+              value: 0, 
+              uuid: '2A63', // cycling power measurement
+              properties: ['notify'],
+              onSubscribe(maxValueSize, fnUpdatePowerValue) {
+                g_fnUpdateBleCpsPowerValue = fnUpdatePowerValue;
+
+                sendPowerUpdate();
+              },
+              onUnsubscribe() {
+                g_fnUpdateBleCpsPowerValue = null;
+              }
+            }),
+          ],
+        }),
+      ]);
     }
-});
+  });
+}
 
-let g_fnUpdateBleCpsPowerValue = null;
+let g_fnUpdateBleCpsPowerValue = ()=>{};
 
-let lastPowerToSendZwift = 0;
+const SURGE_LENGTH = 5000;
+function surgeValue(tmStart, tmNow) {
+  if(tmNow >= tmStart + SURGE_LENGTH) {
+    return 0;
+  }
+  if(tmNow < tmStart) {
+    return 0;
+  }
+  const seconds = (tmNow - tmStart) / 1000;
+
+  // this function is designed to create a pleasant power surge that starts high, peaks 1 sec after the pull, and integrates to 1 joule over 5 seconds.
+  // the caller shall multiply the shape by how many joules each yank on the rower caused, and that'll ensure the power #s are sane but also responsive.
+  const x = seconds;
+  const p1 = 2 / (Math.pow(x - 1, 2) + 1);
+  const p2 = -0.22*x;
+  const p3 = 1;
+  return 0.154502750428695 *(p1 + p2 + p3);
+}
+function Surge(kJ) {
+  const tmStart = new Date().getTime();
+
+  this.get = (tmNow) => {
+    const val = surgeValue(tmStart, tmNow);
+    return kJ * 1000 * val;
+  }
+  this.done = (tmNow) => {
+    return tmNow > tmStart + SURGE_LENGTH;
+  }
+}
+
+let g_surges = [];
+function surgeTick(tmNow) {
+  g_surges = g_surges.filter((surge) => {
+    return !surge.done(tmNow);
+  });
+
+  let sum = 0;
+  g_surges.forEach((surge) => {
+    sum += surge.get(tmNow);
+  })
+  return sum;
+}
+function addSurge(kJ) {
+  g_surges.push(new Surge(kJ));
+}
+
+
 function sendPowerUpdate() {
   // what does a CPS power submission look like?
   // 2 bytes: uint16 flags
@@ -24,49 +104,20 @@ function sendPowerUpdate() {
   // if(crankFlagSet)
           // it won't be!
   
+  const power = surgeTick(tmNow);
+
   const buffer = Buffer.alloc(4);
   buffer.writeUInt16LE(0, 0);
-  buffer.writeUInt16LE(lastPowerToSendZwift, 2);
+  buffer.writeUInt16LE(power, 2);
 
   if(g_fnUpdateBleCpsPowerValue) {
-    console.log("BLE CPS Reported ", lastPowerToSendZwift);
+    console.log("BLE CPS Reported ", power);
     g_fnUpdateBleCpsPowerValue(buffer);
   
-    setTimeout(sendPowerUpdate, 500);
+    setTimeout(sendPowerUpdate, 250);
   }
 }
 
-function newPowerReport(watts) {
-  lastPowerToSendZwift = watts;
-  console.log("watts = ", watts);
-}
-
-bleno.on('advertisingStart', function(error) {
-  if (!error) {
-    bleno.setServices([
-      // CPS
-      new bleno.PrimaryService({
-        uuid: '1818', // cycling power service
-        characteristics: [
-          // Alert Level
-          new bleno.Characteristic({
-            value: 0, 
-            uuid: '2A63', // cycling power measurement
-            properties: ['notify'],
-            onSubscribe(maxValueSize, fnUpdatePowerValue) {
-              g_fnUpdateBleCpsPowerValue = fnUpdatePowerValue;
-
-              sendPowerUpdate();
-            },
-            onUnsubscribe() {
-              g_fnUpdateBleCpsPowerValue = null;
-            }
-          }),
-        ],
-      }),
-    ]);
-  }
-});
 
 
 let waterrower = new WaterRower({
@@ -85,25 +136,32 @@ waterrower.on('initialized', () => {
   waterrower.reset();
   //waterrower.startRecording();
     
+
+  let lastKCal = 0;
+
+  setInterval(() => {
+    console.log("power = ", surgeTick(new Date().getTime()));
+  }, 100);
+
   waterrower.on('data', d => {
     // access the value that just changed using d
     // or access any of the other datapoints using waterrower.readDataPoint('<datapointName>');
     switch(d.name) {
+      case 'total_kcal':
+        const thisKCal = d.value;
+        const deltaJ = thisKCal - lastKCal;
+        lastKCal = thisKCal;
+        if(deltaJ > 0) {
+          console.log("Delta joules = ", deltaJ, "    | ", lastKCal, " -> ", thisKCal);
+          addSurge(deltaJ / 1000);
+        }
+        break;
       case 'kcal_watts':
         // the waterrower sends power numbers like 0-0-0-0-0-255-0-0-0-0-0-0-123-0-0-0-0-0.
         // if we sent all the zeroes, you'd average like 30 watts because you'd only be nonzero for like 250ms before the next zero shows up.
         // so I'm going to only report the positive numbers, and zero things out after 5 seconds of zeroes.
-        if(d.value !== 0) {
-          newPowerReport(d.value);
-
-          clearTimeout(zeroTimeout);
-          zeroTimeout = setTimeout(() => {
-            newPowerReport(0);
-          }, 5000);
-        }
         break;
     
     }
   });
 })
-newPowerReport(0);
