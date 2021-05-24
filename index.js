@@ -2,7 +2,7 @@ var {WaterRower} = require('waterrower');
 
 const isTest = process.argv.find((arg) => arg === 'test');
 
-if(!isTest) {
+try {
   // only run bluetooth when we're not testing (aka when we're on the PI)
   const bleno = require('bleno');
   bleno.on('stateChange', function(state) {
@@ -41,7 +41,10 @@ if(!isTest) {
       ]);
     }
   });
+} catch(e) {
+  console.log("Looks like bleno (bluetooth) is not available on this computer ", e);
 }
+
 
 let g_fnUpdateBleCpsPowerValue = ()=>{};
 
@@ -103,7 +106,7 @@ function sendPowerUpdate() {
 
   // if(crankFlagSet)
           // it won't be!
-  
+  const tmNow = new Date().getTime(); 
   const power = surgeTick(tmNow);
 
   const buffer = Buffer.alloc(4);
@@ -139,10 +142,6 @@ waterrower.on('initialized', () => {
 
   let lastKCal = 0;
 
-  setInterval(() => {
-    console.log("power = ", surgeTick(new Date().getTime()));
-  }, 100);
-
   waterrower.on('data', d => {
     // access the value that just changed using d
     // or access any of the other datapoints using waterrower.readDataPoint('<datapointName>');
@@ -151,8 +150,7 @@ waterrower.on('initialized', () => {
         const thisKCal = d.value;
         const deltaJ = thisKCal - lastKCal;
         lastKCal = thisKCal;
-        if(deltaJ > 0) {
-          console.log("Delta joules = ", deltaJ, "    | ", lastKCal, " -> ", thisKCal);
+        if(deltaJ > 0 && lastKCal > 0) {
           addSurge(deltaJ / 1000);
         }
         break;
