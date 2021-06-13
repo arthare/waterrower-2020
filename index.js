@@ -67,6 +67,9 @@ function surgeValue(tmStart, tmNow) {
   return 0.154502750428695 *(p1 + p2 + p3);
 }
 function Surge(kJ) {
+  for(var x = 0; x < 10; x++) {
+    console.log("SURGE SURGE SURGE SURGE SURGE SURGE");
+  }
   const tmStart = new Date().getTime();
 
   this.get = (tmNow) => {
@@ -124,7 +127,7 @@ function sendPowerUpdate() {
 
 
 let waterrower = new WaterRower({
-  datapoints:['kcal_watts'],
+  datapoints:['total_kcal'],
 });
 
 if(process.argv[2] === 'test') {
@@ -154,12 +157,6 @@ waterrower.on('initialized', () => {
           addSurge(deltaJ / 1000);
         }
         break;
-      case 'kcal_watts':
-        // the waterrower sends power numbers like 0-0-0-0-0-255-0-0-0-0-0-0-123-0-0-0-0-0.
-        // if we sent all the zeroes, you'd average like 30 watts because you'd only be nonzero for like 250ms before the next zero shows up.
-        // so I'm going to only report the positive numbers, and zero things out after 5 seconds of zeroes.
-        break;
-    
     }
   });
 })
