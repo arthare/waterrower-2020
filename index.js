@@ -1,6 +1,6 @@
 var {WaterRower} = require('waterrower');
+var Concept2 = require('concept2')
 
-const isTest = process.argv.find((arg) => arg === 'test');
 
 try {
   // only run bluetooth when we're not testing (aka when we're on the PI)
@@ -125,38 +125,63 @@ function sendPowerUpdate() {
 }
 
 
-
-let waterrower = new WaterRower({
-  datapoints:['total_kcal'],
-});
-
-if(process.argv[2] === 'test') {
-  waterrower.playRecording('simulationdata');
+const fs = require('fs');
+const isConcept2 = process.argv.find((arg) => arg === 'concept2');
+if(isConcept2) {
+  console.log("they told us to start a concept2");
+  try {
+    const pm4 = new Concept2();
+    let ixFrame = 0;
+    pm4.on('frame', (frame) => {
+      console.log("Concept 2 frame: ", frame);
+      fs.writeFileSync(`./concept-2-frame-${ixFrame++}.json`, JSON.stringify(frame));
+    });
+    let ixData = 0;
+    pm4.on('data', (data) => {
+      //console.log("data = ", data);
+      //fs.writeFileSync(`./concept-2-data-${ixData++}.json`, JSON.stringify(data));
+    });
+    const {Command} = require('csafe');
+    const getCadenceCmd = new Command('GetPower');
+    setInterval(() => {
+      pm4.write(getCadenceCmd);
+    }, 750);
+  } catch(e) {
+    console.error("Error: ", e);
+  }
 } else {
-  // it'll just initialize otherwise
-}
-
-let zeroTimeout;
-
-waterrower.on('initialized', () => {
-  waterrower.reset();
-  //waterrower.startRecording();
-    
-
-  let lastKCal = 0;
-
-  waterrower.on('data', d => {
-    // access the value that just changed using d
-    // or access any of the other datapoints using waterrower.readDataPoint('<datapointName>');
-    switch(d.name) {
-      case 'total_kcal':
-        const thisKCal = d.value;
-        const deltaJ = thisKCal - lastKCal;
-        lastKCal = thisKCal;
-        if(deltaJ > 0 && lastKCal > 0) {
-          addSurge(deltaJ / 1000);
-        }
-        break;
-    }
+  let waterrower = new WaterRower({
+    datapoints:['total_kcal'],
   });
-})
+  
+  if(process.argv.find((arg) => arg === 'test')) {
+    waterrower.playRecording('simulationdata');
+  } else {
+    // it'll just initialize otherwise
+  }
+  
+  let zeroTimeout;
+  
+  waterrower.on('initialized', () => {
+    waterrower.reset();
+    //waterrower.startRecording();
+      
+  
+    let lastKCal = 0;
+  
+    waterrower.on('data', d => {
+      // access the value that just changed using d
+      // or access any of the other datapoints using waterrower.readDataPoint('<datapointName>');
+      switch(d.name) {
+        case 'total_kcal':
+          const thisKCal = d.value;
+          const deltaJ = thisKCal - lastKCal;
+          lastKCal = thisKCal;
+          if(deltaJ > 0 && lastKCal > 0) {
+            addSurge(deltaJ / 1000);
+          }
+          break;
+      }
+    });
+  })
+}
