@@ -86,7 +86,11 @@ let g_lastConcept2Power = 0;
 function surgeTick(tmNow) {
 
   if(isConcept2) {
-    return g_lastConcept2Power;
+    if(tmNow - g_lastConcept2Power <= 3000) {
+      return g_lastConcept2Power;
+    } else {
+      return 0;
+    }
   } else {
     g_surges = g_surges.filter((surge) => {
       return !surge.done(tmNow);
@@ -149,13 +153,7 @@ if(isConcept2) {
         g_tmLastConcept2Change = tmNow;
       }
 
-      if(tmNow - g_tmLastConcept2Change < 3000) {
-        g_lastConcept2Power = power;
-        
-      } else {
-        g_lastConcept2Power = 0;
-        console.log("Zero'd due to inactivity");
-      }
+      g_lastConcept2Power = power;
     });
     const {Command} = require('csafe');
     const getCadenceCmd = new Command('GetPower');
