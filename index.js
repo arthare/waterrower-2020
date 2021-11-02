@@ -82,16 +82,22 @@ function Surge(kJ) {
 }
 
 let g_surges = [];
+let g_lastConcept2Power = 0;
 function surgeTick(tmNow) {
-  g_surges = g_surges.filter((surge) => {
-    return !surge.done(tmNow);
-  });
 
-  let sum = 0;
-  g_surges.forEach((surge) => {
-    sum += surge.get(tmNow);
-  })
-  return sum;
+  if(isConcept2) {
+    return g_lastConcept2Power;
+  } else {
+    g_surges = g_surges.filter((surge) => {
+      return !surge.done(tmNow);
+    });
+  
+    let sum = 0;
+    g_surges.forEach((surge) => {
+      sum += surge.get(tmNow);
+    })
+    return sum;
+  }
 }
 function addSurge(kJ) {
   g_surges.push(new Surge(kJ));
@@ -133,19 +139,19 @@ if(isConcept2) {
     const pm4 = new Concept2();
     let ixFrame = 0;
     pm4.on('frame', (frame) => {
-      console.log("Concept 2 frame: ", frame);
-      fs.writeFileSync(`./concept-2-frame-${ixFrame++}.json`, JSON.stringify(frame));
-    });
-    let ixData = 0;
-    pm4.on('data', (data) => {
-      //console.log("data = ", data);
-      //fs.writeFileSync(`./concept-2-data-${ixData++}.json`, JSON.stringify(data));
+      // hackishly, a frame looks like this:  { buffer: <Buffer f1 09 b4 03 9b 00 58 7d f2> }
+      // the bytes we want are here                                         |___|
+      const dv = new DataView(frame.buffer);
+      const power = dv.getInt16(4, false);
+      g_lastConcept2Power = power;
     });
     const {Command} = require('csafe');
     const getCadenceCmd = new Command('GetPower');
     setInterval(() => {
+      
       pm4.write(getCadenceCmd);
     }, 750);
+
   } catch(e) {
     console.error("Error: ", e);
   }
