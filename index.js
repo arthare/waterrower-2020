@@ -146,7 +146,7 @@ if(isConcept2) {
       console.log("Frame power was ", power, "bytes ", frame.buffer.readUInt8(4), frame.buffer.readUInt8(5));
       const tmNow = new Date().getTime();
       if(power !== g_lastConcept2Power) {
-        tmLastConcept2Change = tmNow;
+        g_tmLastConcept2Change = tmNow;
       }
 
       if(tmNow - g_tmLastConcept2Change < 3000) {
