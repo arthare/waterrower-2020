@@ -28,11 +28,13 @@ try {
               uuid: '2A63', // cycling power measurement
               properties: ['notify'],
               onSubscribe(maxValueSize, fnUpdatePowerValue) {
+                console.log("they have subscribed!");
                 g_fnUpdateBleCpsPowerValue = fnUpdatePowerValue;
 
                 sendPowerUpdate();
               },
               onUnsubscribe() {
+                console.log("they have unsubscribed!");
                 g_fnUpdateBleCpsPowerValue = null;
               }
             }),
