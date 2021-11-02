@@ -140,9 +140,9 @@ if(isConcept2) {
     let ixFrame = 0;
     pm4.on('frame', (frame) => {
       // hackishly, a frame looks like this:  { buffer: <Buffer f1 09 b4 03 9b 00 58 7d f2> }
-      // the bytes we want are here                                         |___|
-      const dv = new DataView(frame.buffer);
-      const power = dv.getInt16(4, false);
+      // the bytes we want are here                      
+      const power = frame.buffer.readUInt16LE(4);
+      console.log("Frame power was ", power, "bytes ", frame.buffer.readUInt8(4), frame.buffer.readUInt8(5));
       g_lastConcept2Power = power;
     });
     const {Command} = require('csafe');
