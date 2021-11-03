@@ -1,5 +1,6 @@
 var {WaterRower} = require('waterrower');
 var Concept2 = require('concept2')
+const isConcept2 = process.argv.find((arg) => arg === 'concept2');
 
 
 try {
@@ -8,7 +9,7 @@ try {
   bleno.on('stateChange', function(state) {
       console.log('on stateChange: ' + state);
       if (state === 'poweredOn') {
-        bleno.startAdvertising('Waterrower RPi', ['1818']);
+        bleno.startAdvertising('Waterrower Pwr', ['1818']);
       } else {
         bleno.stopAdvertising();
       }
@@ -124,7 +125,7 @@ function sendPowerUpdate() {
   const tmNow = new Date().getTime(); 
   const power = surgeTick(tmNow);
 
-  const buffer = Buffer.alloc(4);
+  const buffer = Buffer.alloc(8);
   buffer.writeUInt16LE(0, 0);
   buffer.writeUInt16LE(power, 2);
 
@@ -138,7 +139,6 @@ function sendPowerUpdate() {
 
 let g_tmLastConcept2Change = 0;
 const fs = require('fs');
-const isConcept2 = process.argv.find((arg) => arg === 'concept2');
 if(isConcept2) {
   console.log("they told us to start a concept2");
   try {
