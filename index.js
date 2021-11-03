@@ -1,11 +1,13 @@
 var {WaterRower} = require('waterrower');
-var Concept2 = require('concept2')
+var Concept2 = require('concept2');
+const {Command} = require('csafe');
+const bleno = require('bleno');
+const fs = require('fs');
 const isConcept2 = process.argv.find((arg) => arg === 'concept2');
 
 
 try {
   // only run bluetooth when we're not testing (aka when we're on the PI)
-  const bleno = require('bleno');
   bleno.on('stateChange', function(state) {
       console.log('on stateChange: ' + state);
       if (state === 'poweredOn') {
@@ -137,32 +139,39 @@ function sendPowerUpdate() {
   }
 }
 
+const isDebug = process.argv.find((arg) => arg === 'debug');
 let g_tmLastConcept2Change = 0;
-const fs = require('fs');
 if(isConcept2) {
   console.log("they told us to start a concept2");
   try {
-    const pm4 = new Concept2();
-    let ixFrame = 0;
-    pm4.on('frame', (frame) => {
-      // hackishly, a frame looks like this:  { buffer: <Buffer f1 09 b4 03 9b 00 58 7d f2> }
-      // the bytes we want are here                      
-      
-      const power = frame.buffer.readUInt16LE(4);
-      console.log("Frame power was ", power, "bytes ", frame.buffer.readUInt8(4), frame.buffer.readUInt8(5));
-      const tmNow = new Date().getTime();
-      if(power !== g_lastConcept2Power) {
+    if(isDebug) {
+      setInterval(() => {
+        const tmNow = new Date().getTime();
         g_tmLastConcept2Change = tmNow;
-      }
+        g_lastConcept2Power = Math.random() * 300;
+      }, 750);
 
-      g_lastConcept2Power = power;
-    });
-    const {Command} = require('csafe');
-    const getCadenceCmd = new Command('GetPower');
-    setInterval(() => {
-      
-      pm4.write(getCadenceCmd);
-    }, 750);
+    } else {
+      const pm4 = new Concept2();
+      let ixFrame = 0;
+      pm4.on('frame', (frame) => {
+        // hackishly, a frame looks like this:  { buffer: <Buffer f1 09 b4 03 9b 00 58 7d f2> }
+        // the bytes we want are here                      
+        
+        const power = frame.buffer.readUInt16LE(4);
+        console.log("Frame power was ", power, "bytes ", frame.buffer.readUInt8(4), frame.buffer.readUInt8(5));
+        const tmNow = new Date().getTime();
+        if(power !== g_lastConcept2Power) {
+          g_tmLastConcept2Change = tmNow;
+        }
+  
+        g_lastConcept2Power = power;
+      });
+      const getCadenceCmd = new Command('GetPower');
+      setInterval(() => {
+        pm4.write(getCadenceCmd);
+      }, 750);
+    }
 
   } catch(e) {
     console.error("Error: ", e);

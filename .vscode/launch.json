@@ -7,7 +7,8 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch Program",
+            "name": "Concept 2 Debug",
+            "args": ["concept2", "debug"],
             "skipFiles": [
                 "<node_internals>/**"
             ],
