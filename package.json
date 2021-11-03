@@ -1,0 +1,29 @@
+{
+  "name": "waterrower-2020",
+  "version": "1.0.0",
+  "description": "A quick NodeJS app to turn my WaterRower into a cycling powermeter so I can play TourJs (btweb2) with it (or, you know, Zwift/TrainerRoad/Rouvy/Sufferfest/etc).  Inspired by waterrower-ble, but I got to write way less code than him thanks to the guys that wrote the `waterrower` and `bleno` since he made his library in 2015.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "dependencies": {
+    "@abandonware/bluetooth-hci-socket": "^0.5.3-8",
+    "bleno": "git+https://github.com/arthare/bleno.git",
+    "concept2": "git+https://github.com/arthare/node-concept2.git",
+    "waterrower": "^0.8.4"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arthare/waterrower-2020.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/arthare/waterrower-2020/issues"
+  },
+  "homepage": "https://github.com/arthare/waterrower-2020#readme"
+}
