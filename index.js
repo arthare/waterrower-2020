@@ -4,7 +4,15 @@ const {Command} = require('csafe');
 const bleno = require('bleno');
 const fs = require('fs');
 const isConcept2 = process.argv.find((arg) => arg === 'concept2');
+const Concept2Debug = require('./concept-2-debug');
 
+
+const SURGE_LENGTH = 5000;
+const isDebug = process.argv.find((arg) => arg === 'debug');
+let g_tmLastConcept2Change = 0;
+let g_lastConcept2Power = 0;
+let g_fnUpdateBleCpsPowerValue = ()=>{};
+let g_surges = [];
 
 try {
   // only run bluetooth when we're not testing (aka when we're on the PI)
@@ -48,12 +56,16 @@ try {
   });
 } catch(e) {
   console.log("Looks like bleno (bluetooth) is not available on this computer ", e);
+
+  // start the power update cycle so our debuggering programmer can take a look
+  g_fnUpdateBleCpsPowerValue = (buf) => {
+    console.log("fake cps update: ", buf);
+  }
+  sendPowerUpdate();
 }
 
 
-let g_fnUpdateBleCpsPowerValue = ()=>{};
 
-const SURGE_LENGTH = 5000;
 function surgeValue(tmStart, tmNow) {
   if(tmNow >= tmStart + SURGE_LENGTH) {
     return 0;
@@ -86,12 +98,10 @@ function Surge(kJ) {
   }
 }
 
-let g_surges = [];
-let g_lastConcept2Power = 0;
 function surgeTick(tmNow) {
 
   if(isConcept2) {
-    if(tmNow - g_lastConcept2Power <= 3000) {
+    if(tmNow - g_tmLastConcept2Change <= 3000) {
       return g_lastConcept2Power;
     } else {
       return 0;
@@ -139,39 +149,32 @@ function sendPowerUpdate() {
   }
 }
 
-const isDebug = process.argv.find((arg) => arg === 'debug');
-let g_tmLastConcept2Change = 0;
 if(isConcept2) {
   console.log("they told us to start a concept2");
   try {
+    let pm4;
     if(isDebug) {
-      setInterval(() => {
-        const tmNow = new Date().getTime();
-        g_tmLastConcept2Change = tmNow;
-        g_lastConcept2Power = Math.random() * 300;
-      }, 750);
-
+      pm4 = new Concept2Debug();
     } else {
-      const pm4 = new Concept2();
-      let ixFrame = 0;
-      pm4.on('frame', (frame) => {
-        // hackishly, a frame looks like this:  { buffer: <Buffer f1 09 b4 03 9b 00 58 7d f2> }
-        // the bytes we want are here                      
-        
-        const power = frame.buffer.readUInt16LE(4);
-        console.log("Frame power was ", power, "bytes ", frame.buffer.readUInt8(4), frame.buffer.readUInt8(5));
-        const tmNow = new Date().getTime();
-        if(power !== g_lastConcept2Power) {
-          g_tmLastConcept2Change = tmNow;
-        }
-  
-        g_lastConcept2Power = power;
-      });
-      const getCadenceCmd = new Command('GetPower');
-      setInterval(() => {
-        pm4.write(getCadenceCmd);
-      }, 750);
+      pm4 = new Concept2();
     }
+    pm4.on('frame', (frame) => {
+      // hackishly, a frame looks like this:  { buffer: <Buffer f1 09 b4 03 9b 00 58 7d f2> }
+      // the bytes we want are here                      
+      
+      const power = frame.buffer.readUInt16LE(4);
+      console.log("Frame power was ", power, "bytes ", frame.buffer.readUInt8(4), frame.buffer.readUInt8(5));
+      const tmNow = new Date().getTime();
+      if(power !== g_lastConcept2Power) {
+        g_tmLastConcept2Change = tmNow;
+      }
+
+      g_lastConcept2Power = power;
+    });
+    const getCadenceCmd = new Command('GetPower');
+    setInterval(() => {
+      pm4.write(getCadenceCmd);
+    }, 750);
 
   } catch(e) {
     console.error("Error: ", e);
